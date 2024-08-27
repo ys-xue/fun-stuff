@@ -1,16 +1,21 @@
-# Upload to youtube.
-
 import os
+import json
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+from googleapiclient.discovery import Resource
 
 SCOPES = ['https://www.googleapis.com/auth/youtube.upload']
-
 CLIENT_SECRETS_FILE = "/Users/xueyishu/Documents/mavenGenAI/Lesson1/google_download/credentials2.json"
 
-def authenticate_youtube():
+def authenticate_youtube() -> Resource:
+    """
+    Authenticates the user and creates a YouTube API client.
+
+    Returns:
+        Resource: An authenticated YouTube API client.
+    """
     creds = None
     if os.path.exists('token.json'):
         creds = Credentials.from_authorized_user_file('token.json', SCOPES)
@@ -26,11 +31,19 @@ def authenticate_youtube():
 
 youtube = authenticate_youtube()
 
-def parse_txt_file(txt_file_path):
+def parse_txt_file(txt_file_path: str) -> tuple[str, str]:
+    """
+    Parses a text file to extract the creation time and description.
+
+    Args:
+        txt_file_path (str): The path to the .txt file containing video metadata.
+
+    Returns:
+        tuple[str, str]: The creation time (as title) and the rest of the file content as description.
+    """
     with open(txt_file_path, 'r') as file:
         lines = file.readlines()
     
-    # Extract the creation time
     creation_time = None
     description = []
     for line in lines:
@@ -42,7 +55,18 @@ def parse_txt_file(txt_file_path):
     description_text = "\n".join(description)
     return creation_time, description_text
 
-def upload_video(youtube, file_path, title, description, category="22", tags=None):
+def upload_video(youtube: Resource, file_path: str, title: str, description: str, category: str = "22", tags: list[str] = None) -> None:
+    """
+    Uploads a video to YouTube.
+
+    Args:
+        youtube (Resource): The authenticated YouTube API client.
+        file_path (str): The path to the video file to upload.
+        title (str): The title of the video.
+        description (str): The description of the video.
+        category (str): The category ID of the video (default is "22" for People & Blogs).
+        tags (list[str], optional): A list of tags for the video. Defaults to None.
+    """
     body = {
         'snippet': {
             'title': title,
@@ -51,7 +75,7 @@ def upload_video(youtube, file_path, title, description, category="22", tags=Non
             'categoryId': category
         },
         'status': {
-            'privacyStatus': 'public',
+            'privacyStatus': 'private',
         }
     }
 
@@ -73,7 +97,16 @@ def upload_video(youtube, file_path, title, description, category="22", tags=Non
         else:
             print("Uploading video...")
 
-def upload_videos_in_folder(youtube, video_folder_path, txt_folder_path, uploaded_videos_file='uploaded_videos.json'):
+def upload_videos_in_folder(youtube: Resource, video_folder_path: str, txt_folder_path: str, uploaded_videos_file: str = 'uploaded_videos.json') -> None:
+    """
+    Uploads all videos in a folder to YouTube, skipping videos that have already been uploaded.
+
+    Args:
+        youtube (Resource): The authenticated YouTube API client.
+        video_folder_path (str): The path to the folder containing video files.
+        txt_folder_path (str): The path to the folder containing corresponding .txt files.
+        uploaded_videos_file (str): The path to the JSON file that tracks uploaded videos (default is 'uploaded_videos.json').
+    """
     # Load the list of uploaded videos
     if os.path.exists(uploaded_videos_file):
         with open(uploaded_videos_file, 'r') as f:
