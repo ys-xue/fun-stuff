@@ -5,9 +5,13 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.discovery import Resource
+from google.auth.transport.requests import Request
 
 SCOPES = ['https://www.googleapis.com/auth/youtube.upload']
-CLIENT_SECRETS_FILE = "/Users/xueyishu/Documents/mavenGenAI/Lesson1/google_download/credentials2.json"
+CLIENT_SECRETS_FILE = (
+    "/Users/xueyishu/Documents/mavenGenAI/Lesson1/google_download/credentials2.json"
+)
+
 
 def authenticate_youtube() -> Resource:
     """
@@ -23,13 +27,14 @@ def authenticate_youtube() -> Resource:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(
+                CLIENT_SECRETS_FILE, SCOPES
+            )
             creds = flow.run_local_server(port=8000)
-        with open('token.json', 'w') as token:
+        with open('token.json', 'w', encoding="utf-8") as token:
             token.write(creds.to_json())
     return build('youtube', 'v3', credentials=creds)
 
-youtube = authenticate_youtube()
 
 def parse_txt_file(txt_file_path: str) -> tuple[str, str]:
     """
@@ -39,11 +44,12 @@ def parse_txt_file(txt_file_path: str) -> tuple[str, str]:
         txt_file_path (str): The path to the .txt file containing video metadata.
 
     Returns:
-        tuple[str, str]: The creation time (as title) and the rest of the file content as description.
+        tuple[str, str]: The creation time (as title) and the rest of the file 
+                         content as description.
     """
-    with open(txt_file_path, 'r') as file:
+    with open(txt_file_path, 'r', encoding="utf-8") as file:
         lines = file.readlines()
-    
+
     creation_time = None
     description = []
     for line in lines:
@@ -51,11 +57,19 @@ def parse_txt_file(txt_file_path: str) -> tuple[str, str]:
         if line.startswith("- Creation Time (UTC):"):
             creation_time = line.split(":", 1)[1].strip()
         description.append(line)
-    
+
     description_text = "\n".join(description)
     return creation_time, description_text
 
-def upload_video(youtube: Resource, file_path: str, title: str, description: str, category: str = "22", tags: list[str] = None) -> None:
+
+def upload_video(
+    youtube: Resource,
+    file_path: str,
+    title: str,
+    description: str,
+    category: str = "22",
+    tags: list[str] = None
+) -> None:
     """
     Uploads a video to YouTube.
 
@@ -64,7 +78,7 @@ def upload_video(youtube: Resource, file_path: str, title: str, description: str
         file_path (str): The path to the video file to upload.
         title (str): The title of the video.
         description (str): The description of the video.
-        category (str): The category ID of the video (default is "22" for People & Blogs).
+        category (str): The category ID (default is "22" for People & Blogs).
         tags (list[str], optional): A list of tags for the video. Defaults to None.
     """
     body = {
@@ -80,7 +94,6 @@ def upload_video(youtube: Resource, file_path: str, title: str, description: str
     }
 
     media = MediaFileUpload(file_path, chunksize=-1, resumable=True)
-
     request = youtube.videos().insert(
         part="snippet,status",
         body=body,
@@ -91,25 +104,35 @@ def upload_video(youtube: Resource, file_path: str, title: str, description: str
     while response is None:
         status, response = request.next_chunk()
         if 'id' in response:
-            print(f"Video '{file_path}' uploaded successfully. Video ID: {response['id']}")
+            print(f"Video '{file_path}' uploaded successfully. Video ID: {
+                  response['id']}")
         elif 'error' in response:
             print(f"An error occurred: {response['error']['message']}")
         else:
             print("Uploading video...")
 
-def upload_videos_in_folder(youtube: Resource, video_folder_path: str, txt_folder_path: str, uploaded_videos_file: str = 'uploaded_videos.json') -> None:
+
+def upload_videos_in_folder(
+    youtube: Resource,
+    video_folder_path: str,
+    txt_folder_path: str,
+    uploaded_videos_file: str = 'uploaded_videos.json'
+) -> None:
     """
-    Uploads all videos in a folder to YouTube, skipping videos that have already been uploaded.
+    Uploads all videos in a folder to YouTube, skipping videos that have 
+    already been uploaded.
 
     Args:
         youtube (Resource): The authenticated YouTube API client.
         video_folder_path (str): The path to the folder containing video files.
-        txt_folder_path (str): The path to the folder containing corresponding .txt files.
-        uploaded_videos_file (str): The path to the JSON file that tracks uploaded videos (default is 'uploaded_videos.json').
+        txt_folder_path (str): The path to the folder containing corresponding 
+                               .txt files.
+        uploaded_videos_file (str): The path to the JSON file that tracks 
+                                    uploaded videos (default is 'uploaded_videos.json').
     """
     # Load the list of uploaded videos
     if os.path.exists(uploaded_videos_file):
-        with open(uploaded_videos_file, 'r') as f:
+        with open(uploaded_videos_file, 'r', encoding="utf-8") as f:
             uploaded_videos = json.load(f)
     else:
         uploaded_videos = []
@@ -121,16 +144,17 @@ def upload_videos_in_folder(youtube: Resource, video_folder_path: str, txt_folde
         if file_name in uploaded_videos:
             print(f"Skipping {file_name}, already uploaded.")
             continue
-        
+
         if upload_count >= max_uploads:
             print(f"Reached the upload limit of {max_uploads} videos.")
             break
-        
-        if file_name.endswith(('.mp4', '.avi', '.mov', '.mkv')):  # Add more extensions if needed
+
+        # Add more extensions if needed
+        if file_name.endswith(('.mp4', '.avi', '.mov', '.mkv')):
             file_path = os.path.join(video_folder_path, file_name)
             txt_file_name = file_name.rsplit('.', 1)[0] + ".txt"
             txt_file_path = os.path.join(txt_folder_path, txt_file_name)
-            
+
             if os.path.exists(txt_file_path):
                 title, description = parse_txt_file(txt_file_path)
                 upload_video(youtube, file_path, title, description)
@@ -138,18 +162,25 @@ def upload_videos_in_folder(youtube: Resource, video_folder_path: str, txt_folde
                 upload_count += 1
                 print(f"Uploaded {file_name}, total uploads: {upload_count}")
             else:
-                print(f"Corresponding .txt file not found for {file_name}, skipping.")
-    
+                print(f"Corresponding .txt file not found for {
+                      file_name}, skipping.")
+
     # Save the list of uploaded videos
-    with open(uploaded_videos_file, 'w') as f:
+    with open(uploaded_videos_file, 'w', encoding="utf-8") as f:
         json.dump(uploaded_videos, f, indent=4)
 
     print(f"Finished uploading. {upload_count} videos uploaded.")
 
 
+if __name__ == "__main__":
+    youtube = authenticate_youtube()
 
-# Example usage
-video_folder_path = "/Users/xueyishu/Documents/mavenGenAI/Lesson1/google_download/downloads"
-txt_folder_path = "/Users/xueyishu/Documents/mavenGenAI/Lesson1/google_download/txt_descriptions"
+    # Example usage
+    video_folder_path = (
+        "/Users/xueyishu/Documents/mavenGenAI/Lesson1/google_download/downloads"
+    )
+    txt_folder_path = (
+        "/Users/xueyishu/Documents/mavenGenAI/Lesson1/google_download/txt_descriptions"
+    )
 
-upload_videos_in_folder(youtube, video_folder_path, txt_folder_path)
+    upload_videos_in_folder(youtube, video_folder_path, txt_folder_path)
